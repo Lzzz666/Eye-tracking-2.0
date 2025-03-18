@@ -37,6 +37,7 @@ csv_file = None
 csv_writer = None
 output_dir = None
 
+
 def create_output_dir():
     """建立以當前時間為名稱的資料夾"""
     timestamp = time.strftime("%Y%m%d_%H%M%S")  
@@ -117,14 +118,16 @@ def draw_button(frame):
     cv2.rectangle(frame, (button_x, button_y), (button_x + button_w, button_y + button_h), button_color, -1)  # 繪製按鈕背景
     cv2.putText(frame, "Start/Stop Recording", (button_x + 10, button_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)  # 按鈕文本
 
-# ------------- 更新數據 -------------
 
+# ------------- 更新數據 -------------
 def update_data():
     global data_buffer, left_eye_img, right_eye_img, scene_img, final_image, video_writer, csv_writer, csv_file 
     try:
         while True:
             gazes = sc.get_gazes_from_streaming(timeout=5.0)
             scene_frames = sc.get_scene_frames_from_streaming(timeout=5.0)
+            frame_datum = scene_frames[-1] 
+
             left_eye_frames = sc.get_left_eye_frames_from_streaming(timeout=5.0)
             right_eye_frames = sc.get_right_eye_frames_from_streaming(timeout=5.0)
 
@@ -132,7 +135,7 @@ def update_data():
             for gaze in gazes:
                 if gaze.combined.gaze_3d.validity:
                     x, y, z = gaze.combined.gaze_3d.x, gaze.combined.gaze_3d.y, gaze.combined.gaze_3d.z
-                    timestamp = time.time()
+                    timestamp = frame_datum.get_timestamp()
 
                     if len(data_buffer["x"]) >= buffer_size:
                         data_buffer["x"].pop(0)
@@ -226,7 +229,3 @@ except KeyboardInterrupt:
     print("User interrupted. Exiting...")
     plt.close('all')
 
-#1. 影片速度問題
-#2. 寫 readme 使用教學
-#3. 假設客戶有需求要怎麼完成這個 3D preview
-#4. 畫面幾偵?

@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.gridspec import GridSpec
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from pyzbar.pyzbar import decode
 from utils.server_info import get_ip_and_port
 from ganzin.sol_sdk.synchronous.models import StreamingMode
 from ganzin.sol_sdk.synchronous.sync_client import SyncClient
@@ -118,7 +118,22 @@ def draw_button(frame):
     cv2.rectangle(frame, (button_x, button_y), (button_x + button_w, button_y + button_h), button_color, -1)  # 繪製按鈕背景
     cv2.putText(frame, "Start/Stop Recording", (button_x + 10, button_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)  # 按鈕文本
 
+# ------------- QR Code 掃描 -------------
+def scan_qrcode(image: np.ndarray):
+    """ 嘗試掃描影像中的 QR Code，並返回內容 """
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  # 轉換為灰階
+    detector = cv2.QRCodeDetector()  # OpenCV 內建 QR Code 掃描器
+    data, bbox, _ = detector.detectAndDecode(gray)
 
+    if data:  # 如果偵測到 QR Code
+        return data
+
+    # 使用 pyzbar 嘗試解碼
+    decoded_objects = decode(gray)
+    for obj in decoded_objects:
+        return obj.data.decode("utf-8")  # 解析 QR Code 內容
+
+    return None  # 沒有偵測到 QR Code
 # ------------- 更新數據 -------------
 def update_data():
     global data_buffer, left_eye_img, right_eye_img, scene_img, final_image, video_writer, csv_writer, csv_file 
@@ -134,8 +149,7 @@ def update_data():
                 if gaze.combined.gaze_3d.validity:
                     x, y, z = gaze.combined.gaze_3d.x, gaze.combined.gaze_3d.y, gaze.combined.gaze_3d.z
                     timestamp = time.time()
-                    #leftEyeGazeOriginY: float
-                    print(gaze.combined.leftEyeGazeOriginY)
+
                     if len(data_buffer["x"]) >= buffer_size:
                         data_buffer["x"].pop(0)
                         data_buffer["y"].pop(0)
@@ -155,6 +169,16 @@ def update_data():
             # 更新影像
             if scene_frames:
                 scene_img = scene_frames[-1].get_buffer()
+
+            # 擷取影像中心部分（假設 QR Code 在畫面中央）
+            h, w, _ = scene_img.shape
+            center_crop = scene_img[h//4:3*h//4, w//4:3*w//4]  # 取畫面中間 50% 區域
+
+            # 嘗試掃描 QR Code
+            qr_result = scan_qrcode(center_crop)
+            if qr_result:
+                print(f"📷 QR Code Detected: {qr_result}")
+
             if left_eye_frames:
                 left_eye_img = left_eye_frames[-1].get_buffer()
             if right_eye_frames:
